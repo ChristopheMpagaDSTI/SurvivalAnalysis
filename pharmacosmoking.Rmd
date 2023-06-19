@@ -1,0 +1,147 @@
+---
+title: "Case Study - Pharmacosmoking"
+output_html:
+    toc: true
+    toc_float: true
+    
+---
+
+# Load the data
+
+```{r}
+library(tidyverse)
+library(asaur)
+library(survival)
+
+dat <- pharmacoSmoking
+head(dat)
+```
+
+```{r}
+dat |> arrange(ttr) |> filter(relapse == 1)
+```
+
+# One-sample analysis
+
+## Overall Time To Relapse
+
+```{r}
+fit.KM <- survfit(Surv(ttr, relapse) ~ 1, data = dat)
+print(fit.KM)
+plot(fit.KM, fun = "F")
+```
+
+## Treatment
+
+```{r}
+fit.KM <- survfit(Surv(ttr, relapse) ~ grp, data = dat)
+print(fit.KM)
+plot(fit.KM, col = 1:2)
+```
+
+# Comparing Two or More groups
+
+## Treatment
+```{r}
+survfit(Surv(ttr, relapse) ~ grp, data = dat)
+survdiff(Surv(ttr, relapse) ~ grp, data = dat)
+```
+
+## Employment
+```{r}
+survfit(Surv(ttr, relapse) ~ employment, data = dat)
+survdiff(Surv(ttr, relapse) ~ employment, data = dat)
+```
+
+## Stratified Test - Treatment by employment stratum
+
+```{r}
+survdiff(Surv(ttr, relapse) ~ grp + strata(employment), data = dat)
+```
+
+# Regression Analysis
+
+## Treatment + Age
+
+```{r}
+fit <- coxph(Surv(ttr, relapse) ~ grp + age, data = dat)
+summary(fit)
+```
+
+## Multiple groups - Employment
+
+```{r}
+fit <- coxph(Surv(ttr, relapse) ~ employment, data = dat)
+summary(fit)
+```
+
+```{r}
+dat2 <- mutate(dat, employment = relevel(employment, ref = "pt"))
+fit <- coxph(Surv(ttr, relapse) ~ employment, data = dat2)
+summary(fit)
+```
+
+## Treatment, Age, Sex, Employment
+```{r}
+fit <- coxph(Surv(ttr, relapse) ~ grp + age + gender + employment, data = dat)
+
+summary(fit)
+```
+
+# Model-based predictions
+
+```{r}
+library(tidyverse)
+library(asaur)
+library(survival)
+
+dat <- pharmacoSmoking
+head(dat)
+```
+
+## Using the linear predictor
+```{r}
+fit <- coxph(Surv(ttr, relapse) ~ age + gender, data = dat)
+summary(fit)
+```
+### New data points
+```{r}
+d_new <- tribble(
+  ~name,     ~age,  ~gender,
+  "Antonio",   38,   "Male",
+  "Carine",    40,  "Female"
+)
+d_new
+```
+
+### Calculating the Linear Predictor - manually
+
+```{r}
+b <- coef(fit)
+print(b)
+```
+
+#### Antonio
+```{r}
+unname(38 * b['age'] + b['genderMale'])
+```
+
+#### Carine
+```{r}
+unname(40 * b['age'])
+```
+
+```{r}
+predict(fit, newdata = d_new, type = "lp", reference = "zero")
+```
+
+### Calculating the Linear Predictor - using 'predict'
+```{r}
+d_new$lp <-
+  predict(fit,
+          newdata = d_new,
+          type = "lp",
+          reference = "zero")
+d_new
+```
+
