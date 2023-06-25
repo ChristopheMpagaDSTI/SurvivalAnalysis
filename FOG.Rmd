@@ -12,14 +12,114 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Executive summary
+In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).In this data, we will try to analysis time to freezing of gait (FROG). FOG is a pattern occurring in patient with Parkinson diseases. It is characterize by kinetic inability and impairment. some indicative events like walking hesitation, turning body could be observed. 
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r libraries,message = FALSE}
+library(tidyverse)
+library(skimr)
+```
 
 ```{r load}
 # load data from kaggle 
-"kaggle competitions download -c tlvmc-parkinsons-freezing-gait-prediction"
+# from CLI kaggle competitions download -c tlvmc-parkinsons-freezing-gait-prediction 
+events <- read_csv("events.csv")
+subjects <- read_csv("subjects.csv")
+tasks <- read_csv("tasks.csv")
+```
+# events 
+````{r}
+str(events)
+```
+
+
+```{r}
+summary(events)
+```
+Kinetic has 1042 NA.  
+
+```{r Kinetic plot}
+barplot(table(events$Kinetic))
+```
+Most kinetic event status is "1", i.e. many events occurs. 
+
+
+```{r}
+prop.table(table(events$Kinetic)) %>% round(2)
+```
+
+82 % of events has been observed during this experiment. 
+
+```{r proportion of kinetic events in table}
+prop.table(table(events$Type)) %>% round(2)
+```
+
+```{r}
+ with(events,barplot(table(Type)))
+```
+
+
+The most frequent events is Turn. (80% of the observed events).  
+```{r add duration col to events}
+events["eventsDuration"] <- with(events,Completion - Init)
+head(events,3)
+```
+
+```{r}
+with(events,hist(eventsDuration,freq = F,breaks = 100, xlim = c(0,60)))
+```
+
+EventsDuration is asymetric , with median 2.7 Unit time. 
+```{r}
+with(events,summary(events_duration))
+```
+== subjects ==
+
+```{r}
+str(subjects)
+```
+```{r}
+dim(subjects)
+```
+
+```{r}
+dim(unique(subjects)) 
+```
+
+There is 173 unique subjects.  
+```{r}
+# age
+with(subjects,hist(Age,breaks = 25))
+```
+
+```{r}
+with(subjects,summary(Age))
+```
+There is 94 NA in Age.  Age has median of 68 years old and presents some outliers. 
+
+```{r}
+# sex
+with(subjects,barplot(table(Sex)))
+```
+
+```{r}
+with(subjects,prop.table(table(Sex))) %>% round(2)
+```
+
+There is almost 70% of men in this cohort. 
+
+```{r}
+str(tasks)
+```
+
+
+
+```{r}
+```
+
+
+
+```{r}
 ```
 
