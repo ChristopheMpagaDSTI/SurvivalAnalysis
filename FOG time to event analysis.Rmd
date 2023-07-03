@@ -329,21 +329,22 @@ plot(fit_be,fun ="F",
 ```
 # summary fit 
 ```{r}
-summary(fit_td)
+fit_td
 ```
 
 
 ```{r}
-summary(fit_be)
+fit_be
 ```
-Half of patients experiment FOG within 85.6 s. 
+Half of patients experiment FOG within 28.9 s. 
 
 ## probability of FOG by 2 minutes.  
 ```{r}
 summary(fit_be, time = 300)
 ```
+## summary coxph
 ```{r}
-summary(fit_coxph)
+fit_coxph
 ```
 
 ```{r}
