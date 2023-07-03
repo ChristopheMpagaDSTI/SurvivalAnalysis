@@ -1,0 +1,361 @@
+---
+title: "FOG time to events analysis"
+author: "Christophe Mpaga"
+output:
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+# Executive summary
+In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim to analysis time to freezing of gait (FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It indicates kinetic inability and impairment during gait for instance. Some indicative events like walking hesitation, turning body could be observed and help to detect FOG occurence. 
+
+# Introduction  
+In this application we aim to analyse time to event in Parkinson patients. Here FOG is the event of interest and it is expected within the execution of a given task, or during daily life activity. Here we will analyse data from lab tasks. Our main goal is to analyse and explain the influence/importance of some features in the occurrence of freezing of gait(FOG) from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model assumption. 
+
+```{r}
+rm(list=ls())
+```
+
+```{r libraries,message = FALSE}
+library(tidyverse)
+library(skimr)
+library(survival)
+```
+
+```{r load,  message=FALSE}
+# load data from kaggle 
+# from CLI kaggle competitions download -c tlvmc-parkinsons-freezing-gait-prediction 
+events <- read_csv("events.csv")
+subjects <- read_csv("subjects.csv")
+tasks <- read_csv("tasks.csv")
+#daily_meta <- read_csv("daily_metadata.csv")
+defog_meta <- read_csv("defog_metadata.csv")
+#tdcsfog_meta <- read_csv("tdcsfog_metadata.csv")
+```
+
+# Data preparation, inspection and preprocessing.  
+let's join all metadata tables before diving into analysis. 
+
+* defog_metadata.csv Identifies each series in the tdcsfog dataset by a unique Subject, Visit, Test, Medication condition.
+
+    - `Visit`  Lab visits consist of a baseline assessment, two post-treatment assessments for different treatment stages, and one follow-up assessment.
+    - `Test` Which of three test types was performed, with 3 the most challenging.
+    - `Medication`  Subjects may have been either off or on anti-parkinsonian medication during the recording.
+
+* subjects.csv Metadata for each Subject in the study, including their `Age` and `Sex` as well as:
+
+    - `Visit`  Only available for subjects in the daily and defog datasets.
+    - `YearsSinceDx` Years since Parkinson's diagnosis.
+    - `UPDRSIIIOn/UPDRSIIIOff`  Unified Parkinson's Disease Rating Scale score    during on/off medication respectively.
+  `NFOGQ` Self-report FoG questionnaire score. See:
+  https://pubmed.ncbi.nlm.nih.gov/19660949/
+
+* events.csv Metadata for each FoG event in all data series. The event times agree with the labels in the data series.  
+
+   - `Id` The data series the event occured in.
+   - `Init` Time (s) the event began.
+   -  `Completion` Time (s) the event ended.
+   -  `Type` Whether StartHesitation, Turn, or Walking.
+   - `Kinetic` Whether the event was kinetic (1) and involved movement, or akinetic (0) and static.
+
+* tasks.csv Task metadata for series in the defog dataset. (Not relevant for the series in the tdcsfog or daily datasets.)
+
+  - `Id` The data series where the task was measured.
+  - `Begin` Time (s) the task began.
+  - `End` Time (s) the task ended.  
+Task One of seven tasks types in the DeFOG protocol, described on this page.
+
+Remove **Visit** from **subjects** table , as we do not use it 
+```{r}
+subjects$Visit=NULL 
+```
+
+
+```{r join data,warning=FALSE,message=FALSE}
+  fog <- inner_join(events,tasks,by="Id") %>% 
+  inner_join(defog_meta,by ="Id")  %>% 
+  inner_join(subjects,by = "Subject") 
+  #inner_join(tdcsfog_meta) 
+  #inner_join(daily_meta)
+rm(events,tasks,defog_meta,subjects)
+```
+
+Note: we are going to consider only defog condition subjects. 
+  
+## Data structure
+Here we will refer to Kinetic as status (will change it later) and init as Time , 
+then we will compute duration . 
+
+### Ad event and tasks duration columns features: 
+  - `eventsDuration <- Completion - Init `
+  - `tasksDuration <- Begin - end `   
+```{r add duration col to events, message=FALSE}
+fog <- fog %>% filter(End >= Completion,Begin < Init ) 
+
+attach(fog)
+# events duration
+fog["eventsDuration"] <- Completion - Init
+
+
+# task duration
+fog["tasksDuration"] <- End - Begin
+
+# Time 
+Time <- vector("numeric",dim(fog)[1])
+for (t in seq_along(dim(fog)[1]))
+Time[t] <- Init[t] - Begin[t]
+fog$Time <- Time
+#mean(Time < 0)
+
+# remove columns 
+#fog$End = NULL
+#fog$Begin = NULL
+#fog$Completion = NULL
+#fog$Init = NULL
+#fog$Id = NULL
+
+# attach fog 
+detach(fog)
+attach(fog)
+
+```
+
+# Data analysis 
+## 1D EDA  
+## Subjects 
+How many unique subjects are in this dataset ?  
+
+There are `r length(unique(fog$Subject))` distinct subjects in this study.  
+
+
+```{r summary stats fog,eval = FALSE}
+skim_without_charts(fog)
+```
+
+## Kinetic / Events 
+How many trials has missing kinetic/status ?
+```{r,eval = T}
+round(mean(is.na(Kinetic)),2)
+```
+
+`r 100*round(mean(is.na(Kinetic)),2)`% of trials has missing Kinetic(status). 
+
+filter for missing kinetic entries/cases.  
+```{r filter row with missing kinetic values }
+fog <- fog %>% 
+    filter(!is.na(Kinetic))
+cat("\n new table dimension\n")
+dim(fog)
+```
+
+```{r,eval=TRUE}
+head(fog,3)
+```
+
+```{r}
+fog_grouped <- fog %>%
+            group_by(Subject) 
+fog_num <- fog %>% group_by(Subject) %>% 
+ summarise_if(.funs = "mean",
+              .predicate = is.numeric
+              )
+```
+
+```{r}
+dim(fog_grouped)
+```
+
+```{r}
+dim(fog_num)
+```
+
+Among remaining `r 100 - 100*round(mean(is.na(Kinetic)),2)`% of trials.
+What is the proportion of observed Kinetic events ?    
+Kinetic graphical summary  
+```{r}
+barplot(table(Kinetic), main = "barplot kinetic")
+```
+
+multiple plot 
+```{r multiple plot}
+par(mfrow = c(2,2))
+barplot(table(Kinetic), main = "barplot kinetic")
+barplot(table(Type),main = "barplot Type")
+hist(eventsDuration,freq = F,breaks = 50, xlim = c(0,60))
+hist(Age,breaks = 15,freq = F)
+```
+ 
+Kinetic numerical summary  
+```{r prop table kinetic events}
+proportion_kinetic <- prop.table(table(Kinetic)) %>% round(2)
+```
+`r 100*proportion_kinetic[2]` % of events has been observed.  
+
+Note : Given that each event is indicative of FOG, we will just gather them and consider that they form one class (Kinetic / events). 
+
+
+```{r,eval=TRUE}
+#How many type of kinetic are observed ?  
+ barplot(table(Type))
+``` 
+
+events type numerical summary 
+```{r proportion of kinetic events in table,eval=TRUE}
+prop.table(table(Type)) %>% round(2)
+
+#The most frequent events is Turn. (`r 100*prop.table(table(Type))[2] %>% round(2)`% of the observed events). 
+```
+
+events  Duration graphical summary.  
+```{r,eval=TRUE}
+hist(eventsDuration,freq = F,breaks = 50, xlim = c(0,60))
+#abline(v = mean(eventsDuration), col ="red")
+#abline(v = median(eventsDuration), col ="blue")
+```
+Events duration is asymetric and right skewed.  
+Many events duration are of high values.   
+
+EventsDuration Numerical summary  
+```{r}
+summary(eventsDuration)
+```
+At least 50% of cases has  `r median(eventsDuration)`s events duration, and events duration ranges between  0 .11 and 581 seconds.   
+
+## Duration 
+What is the mean duration of events, tasks and Time ?  
+```{r}
+cat("events mean duration :",  mean(eventsDuration),"s \n")
+cat("tasks mean duration :", mean(tasksDuration),"s \n")
+cat("mean time to events duration :", mean(Time),"s \n")
+```
+## Age 
+What is the median age ?  
+Age graphical summary.  
+```{r,eval=TRUE}
+# age
+hist(Age,breaks = 15,freq = F)
+```
+Age is not normally distributed, bimodal with some outliers.  
+Age numerical summary.  
+```{r}
+summary(Age)
+```
+
+At least half of subjects are  69 years old.   
+
+## Sex  
+Sex graphical summary.  
+```{r, eval = FALSE}
+# sex
+barplot(table(Sex))
+```
+
+Sex  numerical summary
+```{r,eval=TRUE}
+(sex_prop_table <- prop.table(table(Sex)) %>% round(2))
+```
+
+There is almost `r 100*prop.table(table(Sex))[2]`% of men in this cohort. 
+
+## Tasks
+What kind of tasks has been performed ?
+```{r}
+unique(Task)
+```
+
+how many tasks had been performed ?  
+```{r,eval = FALSE}
+length(unique(Task))
+```
+
+There had been `r length(unique(Task))` task performed. 
+
+## Visit 
+How many rounds of visit did the patient had ?
+```{r}
+length(unique(Visit))
+```
+
+What is the proportion of patient within each number of visit round ?
+```{r}
+round(prop.table(table(Visit)),2)
+```
+`r 100*round(prop.table(table(Visit))[1],2)`% of patients had one Visit, while the remaining had 2. 
+
+## Medication 
+How many subjects are under parkinson-medication ?
+```{r, eval=TRUE}
+100*round(prop.table(table(Medication)),4)
+```
+
+`r 100*round(prop.table(table(Medication)),4)[2]`% are under medication. 
+## 
+```{r}
+
+```
+
+## 
+
+## 2D EDA
+
+# Modelling and Analysis : overall time to FOG. 
+```{r}
+#par(mfrow = c(1,2))
+#fit task duration 
+fit_td <- survfit(Surv(tasksDuration, Kinetic) ~ 1, data = fog)
+
+# fit from begin to end
+fit_be <- survfit(Surv(Begin,End, Kinetic) ~ 1, data = fog)
+
+fit_coxph <- coxph(Surv(Begin,End, Kinetic) ~ 1, data = fog)
+plot(fit_td,fun ="F",
+      xlab = "Task duration in (seconds)",
+     ylab = "Cum. Prob. of experiencing a FOG", 
+     frame = F)
+```
+
+
+```{r}
+# plot fit2
+plot(fit_be,fun ="F",
+      xlab = "Time to FOG from begin to end in (seconds)",
+     ylab = "Cum. Prob. of experiencing a FOG", 
+     frame = F)
+```
+# summary fit 
+```{r}
+summary(fit_td)
+```
+
+
+```{r}
+summary(fit_be)
+```
+Half of patients experiment FOG within 85.6 s. 
+
+## probability of FOG by 2 minutes.  
+```{r}
+summary(fit_be, time = 300)
+```
+```{r}
+summary(fit_coxph)
+```
+
+```{r}
+
+```
+
+# Discussion and Conclusion
+
+# References 
+
+
+**To be continued !!!!**
+
+
+
