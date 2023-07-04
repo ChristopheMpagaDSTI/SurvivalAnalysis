@@ -81,8 +81,6 @@ subjects$Visit=NULL
   fog <- inner_join(events,tasks,by="Id") %>% 
   inner_join(defog_meta,by ="Id")  %>% 
   inner_join(subjects,by = "Subject") 
-  #inner_join(tdcsfog_meta) 
-  #inner_join(daily_meta)
 rm(events,tasks,defog_meta,subjects)
 ```
 
@@ -351,28 +349,27 @@ P-value is `r p`<< 0.05. there is huge effect of Medication in experiencing FOG 
 fit_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
 
 # summary type 
-p <- round(tidy(fit_task)$p.value,2)
+#p <- round(tidy(fit_task)$p.value,2)
 
 ```
-p-value `r p` is << to 0.05, there is strong effect of task type in FOG occurence holding other variables fixed. 
 
-### effect of event type 
+
+### effect of events type 
 ```{r }
 fit_type <- coxph(Surv(Begin,End, Kinetic) ~ Task, data = fog)
 
-# summary fit_type
-tidy(fit_type)
+# summary fit_type 
+#p <- tidy(fit_type)$p.value
 ```
-p-value is `r p` is << to 0.05. There an effect of task type in the risk of experiencing FOG. 
 
 ### effect of visit 
 ```{r}
 fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
 
 # summary fit_type
-p <- round(tidy(fit_visit)$p.value,2)
+#p <- round(tidy(fit_visit)$p.value,2)
 ```
-P-value is `r p` and is << to 0.05, there is an effect of visit number in FOG occurrence.  
+  
 
 # Discussion and Conclusion
 
