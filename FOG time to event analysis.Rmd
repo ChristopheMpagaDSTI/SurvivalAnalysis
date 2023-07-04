@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = FALSE)
 In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim to analysis time to freezing of gait (FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It indicates kinetic inability and impairment during gait for instance. Some indicative events like walking hesitation, turning body could be observed and help to detect FOG occurence. 
 
 # Introduction  
-In this application we aim to analyse time to event in Parkinson patients. Here FOG is the event of interest and it is expected within the execution of a given task, or during daily life activity. Here we will analyse data from lab tasks. Our main goal is to analyse and explain the influence/importance of some features in the occurrence of freezing of gait(FOG) from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model assumption. 
+We aim at analyzing the time to event in Parkinsonian patients. Here FOG is the event of interest and it is expected within the execution of a given task, or during daily life activity. Here we will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, the influence/importance of some features to the occurrence of freezing of gait(FOG) from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
 
 ```{r}
 rm(list=ls())
@@ -25,6 +25,7 @@ rm(list=ls())
 library(tidyverse)
 library(skimr)
 library(survival)
+library(broom)
 ```
 
 ```{r load,  message=FALSE}
@@ -95,7 +96,7 @@ then we will compute duration .
   - `eventsDuration <- Completion - Init `
   - `tasksDuration <- Begin - end `   
 ```{r add duration col to events, message=FALSE}
-fog <- fog %>% filter(End >= Completion,Begin < Init ) 
+fog <- fog %>% filter(Begin > 0 & End > 0, End >= Completion,Begin < Init ) 
 
 attach(fog)
 # events duration
@@ -104,20 +105,6 @@ fog["eventsDuration"] <- Completion - Init
 
 # task duration
 fog["tasksDuration"] <- End - Begin
-
-# Time 
-Time <- vector("numeric",dim(fog)[1])
-for (t in seq_along(dim(fog)[1]))
-Time[t] <- Init[t] - Begin[t]
-fog$Time <- Time
-#mean(Time < 0)
-
-# remove columns 
-#fog$End = NULL
-#fog$Begin = NULL
-#fog$Completion = NULL
-#fog$Init = NULL
-#fog$Id = NULL
 
 # attach fog 
 detach(fog)
@@ -181,15 +168,6 @@ Kinetic graphical summary
 barplot(table(Kinetic), main = "barplot kinetic")
 ```
 
-multiple plot 
-```{r multiple plot}
-par(mfrow = c(2,2))
-barplot(table(Kinetic), main = "barplot kinetic")
-barplot(table(Type),main = "barplot Type")
-hist(eventsDuration,freq = F,breaks = 50, xlim = c(0,60))
-hist(Age,breaks = 15,freq = F)
-```
- 
 Kinetic numerical summary  
 ```{r prop table kinetic events}
 proportion_kinetic <- prop.table(table(Kinetic)) %>% round(2)
@@ -231,7 +209,7 @@ What is the mean duration of events, tasks and Time ?
 ```{r}
 cat("events mean duration :",  mean(eventsDuration),"s \n")
 cat("tasks mean duration :", mean(tasksDuration),"s \n")
-cat("mean time to events duration :", mean(Time),"s \n")
+#cat("mean time to events duration :", mean(Time),"s \n")
 ```
 ## Age 
 What is the median age ?  
@@ -307,51 +285,97 @@ How many subjects are under parkinson-medication ?
 ```{r}
 #par(mfrow = c(1,2))
 #fit task duration 
-fit_td <- survfit(Surv(tasksDuration, Kinetic) ~ 1, data = fog)
+fit_tti <- survfit(Surv(Begin,Init, Kinetic) ~ 1, data = fog)
 
 # fit from begin to end
-fit_be <- survfit(Surv(Begin,End, Kinetic) ~ 1, data = fog)
+fit_tte <- survfit(Surv(Begin,End, Kinetic) ~ 1, data = fog)
 
-fit_coxph <- coxph(Surv(Begin,End, Kinetic) ~ 1, data = fog)
-plot(fit_td,fun ="F",
-      xlab = "Task duration in (seconds)",
-     ylab = "Cum. Prob. of experiencing a FOG", 
-     frame = F)
 ```
 
 
-```{r}
+```{r plot fit task duration}
+plot(fit_tti,fun ="F",
+     xlim = c(0,250),
+      xlab = "Time  (seconds)",
+     ylab = "Cum. Prob. of experiencing a FOG",
+     main = "FOG cumul. hazard from task beginning  
+     to FOG initiation",
+     frame = F)
+```
+
+```{r fit tti summary}
+fit_tti
+```
+
+When considering time to FOG initiation , half of patients experiment FOG within `r summary(fit_tti)$table["median"]` s. 
+
+```{r plot fit begin to end }
 # plot fit2
-plot(fit_be,fun ="F",
-      xlab = "Time to FOG from begin to end in (seconds)",
+plot(fit_tte,
+     fun ="F",
+     xlim =c(0,250),
+      xlab = "Time (seconds)",
      ylab = "Cum. Prob. of experiencing a FOG", 
+     main ="FOG cum. hazard from task start 
+     to the end",
      frame = F)
 ```
+
+```{r fit_tte summary}
+fit_tte
+```
+When considering time to the end of the task, half of patients experiment FOG within `r summary(fit_tte)$table["median"]` s. 
+
+## group effect : coxph analysis. 
+### sex
+```{r}
+# fit
+fit_sex <- coxph(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
+
 # summary fit 
-```{r}
-fit_td
+p <- round(tidy(fit_sex)$p.value,2)
 ```
+p-value is `r p` .There is no effect of sex on time to FOG. 
 
-
+### Medication
 ```{r}
-fit_be
-```
-Half of patients experiment FOG within 28.9 s. 
+fit_Med <- coxph(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog)
 
-## probability of FOG by 2 minutes.  
-```{r}
-summary(fit_be, time = 300)
+# summary fit_medication
+p <- round(tidy(fit_Med)$p.value,2)
 ```
-## summary coxph
-```{r}
-fit_coxph
-```
+P-value is `r p`<< 0.05. there is huge effect of Medication in experiencing FOG holding other variables fixed. 
 
+### effect of task type 
 ```{r}
+fit_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
+
+# summary type 
+p <- round(tidy(fit_task)$p.value,2)
 
 ```
+p-value `r p` is << to 0.05, there is strong effect of task type in FOG occurence holding other variables fixed. 
+
+### effect of event type 
+```{r }
+fit_type <- coxph(Surv(Begin,End, Kinetic) ~ Task, data = fog)
+
+# summary fit_type
+tidy(fit_type)
+```
+p-value is `r p` is << to 0.05. There an effect of task type in the risk of experiencing FOG. 
+
+### effect of visit 
+```{r}
+fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
+
+# summary fit_type
+p <- round(tidy(fit_visit)$p.value,2)
+```
+P-value is `r p` and is << to 0.05, there is an effect of visit number in FOG occurrence.  
 
 # Discussion and Conclusion
+
 
 # References 
 
