@@ -1,6 +1,5 @@
 ---
-title: "FOG time to events analysis"
-author: "Christophe Mpaga"
+title: "Time to freezing of gait analysis : A time to event analysis"
 output:
   pdf_document:
     toc: yes
@@ -15,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE)
 In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim to analysis time to freezing of gait (FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It indicates kinetic inability and impairment during gait for instance. Some indicative events like walking hesitation, turning body could be observed and help to detect FOG occurence. 
 
 # Introduction  
-We aim at analyzing the time to event in Parkinsonian patients. Here FOG is the event of interest and it is expected within the execution of a given task, or during daily life activity. Here we will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, the influence/importance of some features to the occurrence of freezing of gait(FOG) from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
+We aim at analyzing the time to event in Parkinsonian 44 patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task, or during daily life activity.We will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, the influence/importance of some features to the occurrence of freezing of gait(FOG) from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
 
 ```{r}
 rm(list=ls())
@@ -87,9 +86,6 @@ rm(events,tasks,defog_meta,subjects)
 Note: we are going to consider only defog condition subjects. 
   
 ## Data structure
-Here we will refer to Kinetic as status (will change it later) and init as Time , 
-then we will compute duration . 
-
 ### Ad event and tasks duration columns features: 
   - `eventsDuration <- Completion - Init `
   - `tasksDuration <- Begin - end `   
@@ -111,7 +107,6 @@ attach(fog)
 ```
 
 # Data analysis 
-## 1D EDA  
 ## Subjects 
 How many unique subjects are in this dataset ?  
 
@@ -138,35 +133,11 @@ cat("\n new table dimension\n")
 dim(fog)
 ```
 
-```{r,eval=TRUE}
+```{r}
 head(fog,3)
 ```
 
-```{r}
-fog_grouped <- fog %>%
-            group_by(Subject) 
-fog_num <- fog %>% group_by(Subject) %>% 
- summarise_if(.funs = "mean",
-              .predicate = is.numeric
-              )
-```
-
-```{r}
-dim(fog_grouped)
-```
-
-```{r}
-dim(fog_num)
-```
-
-Among remaining `r 100 - 100*round(mean(is.na(Kinetic)),2)`% of trials.
 What is the proportion of observed Kinetic events ?    
-Kinetic graphical summary  
-```{r}
-barplot(table(Kinetic), main = "barplot kinetic")
-```
-
-Kinetic numerical summary  
 ```{r prop table kinetic events}
 proportion_kinetic <- prop.table(table(Kinetic)) %>% round(2)
 ```
@@ -174,63 +145,15 @@ proportion_kinetic <- prop.table(table(Kinetic)) %>% round(2)
 
 Note : Given that each event is indicative of FOG, we will just gather them and consider that they form one class (Kinetic / events). 
 
-
-```{r,eval=TRUE}
-#How many type of kinetic are observed ?  
- barplot(table(Type))
-``` 
-
-events type numerical summary 
-```{r proportion of kinetic events in table,eval=TRUE}
-prop.table(table(Type)) %>% round(2)
-
-#The most frequent events is Turn. (`r 100*prop.table(table(Type))[2] %>% round(2)`% of the observed events). 
-```
-
-events  Duration graphical summary.  
-```{r,eval=TRUE}
-hist(eventsDuration,freq = F,breaks = 50, xlim = c(0,60))
-#abline(v = mean(eventsDuration), col ="red")
-#abline(v = median(eventsDuration), col ="blue")
-```
-Events duration is asymetric and right skewed.  
-Many events duration are of high values.   
-
-EventsDuration Numerical summary  
-```{r}
-summary(eventsDuration)
-```
-At least 50% of cases has  `r median(eventsDuration)`s events duration, and events duration ranges between  0 .11 and 581 seconds.   
-
-## Duration 
-What is the mean duration of events, tasks and Time ?  
-```{r}
-cat("events mean duration :",  mean(eventsDuration),"s \n")
-cat("tasks mean duration :", mean(tasksDuration),"s \n")
-#cat("mean time to events duration :", mean(Time),"s \n")
-```
 ## Age 
 What is the median age ?  
-Age graphical summary.  
-```{r,eval=TRUE}
-# age
-hist(Age,breaks = 15,freq = F)
-```
-Age is not normally distributed, bimodal with some outliers.  
 Age numerical summary.  
 ```{r}
 summary(Age)
 ```
-
 At least half of subjects are  69 years old.   
 
 ## Sex  
-Sex graphical summary.  
-```{r, eval = FALSE}
-# sex
-barplot(table(Sex))
-```
-
 Sex  numerical summary
 ```{r,eval=TRUE}
 (sex_prop_table <- prop.table(table(Sex)) %>% round(2))
@@ -264,20 +187,12 @@ round(prop.table(table(Visit)),2)
 `r 100*round(prop.table(table(Visit))[1],2)`% of patients had one Visit, while the remaining had 2. 
 
 ## Medication 
-How many subjects are under parkinson-medication ?
+How many subjects are under parkinsonian-medication ?
 ```{r, eval=TRUE}
 100*round(prop.table(table(Medication)),4)
 ```
 
 `r 100*round(prop.table(table(Medication)),4)[2]`% are under medication. 
-## 
-```{r}
-
-```
-
-## 
-
-## 2D EDA
 
 # Modelling and Analysis : overall time to FOG. 
 ```{r}
@@ -324,8 +239,8 @@ fit_tte
 ```
 When considering time to the end of the task, half of patients experiment FOG within `r summary(fit_tte)$table["median"]` s. 
 
-## group effect : coxph analysis. 
-### sex
+## Univariate analysis. 
+### Sex
 ```{r}
 # fit
 fit_sex <- coxph(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
@@ -344,34 +259,64 @@ p <- round(tidy(fit_Med)$p.value,2)
 ```
 P-value is `r p`<< 0.05. there is huge effect of Medication in experiencing FOG holding other variables fixed. 
 
-### effect of task type 
+### Task type 
 ```{r}
 fit_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
 
 # summary type 
-#p <- round(tidy(fit_task)$p.value,2)
-
+tidy(fit_task) |> 
+  filter(p.value <= 0.05) |>
+  select(term, estimate,p.value)
 ```
+Three levels have significant effect on time to fog,holding other variables fixed.  
 
-
-### effect of events type 
+### events Type 
 ```{r }
-fit_type <- coxph(Surv(Begin,End, Kinetic) ~ Task, data = fog)
+fit_type <- coxph(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
 
 # summary fit_type 
-#p <- tidy(fit_type)$p.value
+tidy(fit_type) |> 
+  filter(p.value <= 0.05) |>
+  select(term, estimate,p.value)
 ```
+There is no effect of Task type on FOG occurrence.  
 
-### effect of visit 
+### visit 
 ```{r}
 fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
 
 # summary fit_type
-#p <- round(tidy(fit_visit)$p.value,2)
+tidy(fit_visit) |> 
+  filter(p.value <= 0.05) |>
+  select(term, estimate,p.value)
 ```
-  
+p-value << 0.05. Having more than one (1) round visit to hospital, has an influence on FOG occurrence. 
 
-# Discussion and Conclusion
+### yearSinceDx : year since diagnosis. 
+```{r}
+fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
+                 data = fog)
+p <- tidy(fit_YSDx)$p.value
+```
+p-value : `r p` is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
+
+## Multivariate analysis 
+```{r}
+fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age +  Medication  +
+                                               Visit + YearsSinceDx),
+                 data = fog)
+tidy(fit_mult) %>% 
+  filter(p.value <= 0.05)
+```
+Medication and Visit present a p value < 0.05.Being on medication and having  visit to hospital has an effect  on the occurrence of FOG in this population. 
+
+```{r}
+
+```
+
+# Results  
+# Discussion 
+# Conclusion
 
 
 # References 
