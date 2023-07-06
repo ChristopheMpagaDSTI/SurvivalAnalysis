@@ -150,7 +150,7 @@ Age numerical summary.
 ```{r}
 summary(Age)
 ```
-At least half of subjects are  69 years old.   
+At least half of subjects are  69 years old or above.   
 
 ## Sex  
 Sex  numerical summary
@@ -243,8 +243,8 @@ When considering time to the end of the task, half of patients experience FOG wi
 ### Sex
 ```{r}
 # fit
-fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
-fit_sex
+(fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog))
+
 ```
 
 
@@ -257,19 +257,21 @@ p-value is `r p` .There is no effect of sex on time to FOG.
 
 ### Medication
 ```{r}
-fit_Med <- coxph(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog)
+(fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog))
+coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog)
 
 # summary fit_medication
-p <- round(tidy(fit_Med)$p.value,2)
+p <- round(tidy(coxph_Med)$p.value,2)
 ```
 P-value is `r p` which is less than 0.05. There is huge effect of Medication in experiencing FOG holding other variables fixed. 
 
 ### Task type 
 ```{r}
-fit_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
+(fit_task <- survfit(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog))
+coxph_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
 
 # summary type 
-tidy(fit_task) |> 
+tidy(coxph_task) |> 
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
@@ -277,10 +279,11 @@ Three levels have significant effect on time to FOG,holding other variables fixe
 
 ### events Type 
 ```{r }
-fit_type <- coxph(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
+(fit_type <- survfit(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog))
+coxph_type <- coxph(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
 
 # summary fit_type 
-tidy(fit_type) |> 
+tidy(coxph_type) |> 
   filter(p.value > 0.05) |>
   select(term, estimate,p.value)
 ```
@@ -288,10 +291,11 @@ All p.values are greater than 0.05. There is no effect of Task type on FOG occur
 
 ### visit 
 ```{r}
-fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
+(fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog))
+coxph_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
 
 # summary fit_type
-tidy(fit_visit) |> 
+tidy(coxph_visit) |> 
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
@@ -299,9 +303,11 @@ p-value less than  0.05. Having more than one (1) round visit to hospital, has a
 
 ### yearSinceDx : year since diagnosis. 
 ```{r}
-fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
+(fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
+                 data = fog))
+coxph_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
                  data = fog)
-p <- tidy(fit_YSDx)$p.value
+p <- tidy(coxph_YSDx)$p.value
 ```
 p-value is `r p` which is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
 
@@ -313,17 +319,21 @@ fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age +  Medication  +
 tidy(fit_mult) %>% 
   filter(p.value <= 0.05)
 ```
-Medication and Visit present a p value < 0.05. Medication increases the risk of FOG by 0.7 holding visit fixed, while , visit does the same with a rate of 0.2 while holding Medication fixed. 
+Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 0.7 holding visit fixed, while , visit does the same with a by a rate of 0.2 while holding Medication fixed. 
 
 # Results  
 This cohort has 44 subjects, half of the subjects are at least 69 years old. `r 100*round(prop.table(table(Medication))[2],4)` % are under medication,  `r  100*round(prop.table(table(Visit))[2],2)`% present more than 1 round visit to hospital. Our analysis shows that at least half of the subjects time to FOG is  `r summary(fit_tte)$table["median"]` seconds. Subjects  under medication and having frequent visit to hospital are more likely to experience a FOG episode during a motor/kinetic  task like gait. 
 
 # Conclusion   
-We aim at analyzing time to FOG in this study. Our analysis shows that FOG occurrence is related to Medication and Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds. In this cohort , time to FOG episodes is related to Medication and visit to hospital. It could be interesting to investigate also survival difference given kinetic outcomes and tasks. 
+We aim at analyzing time to FOG in this study. Our analysis shows that FOG occurrence is related to Medication and Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds.It could be interesting to investigate also survival difference given kinetic outcomes and tasks. 
 
 # References 
-Cox, David R. 1972. “Regression Models and Life-Tables.” Journal of the Royal Statistical Society: Series B (Methodological) 34 (2): 187–202.
+Cox, David R. 1972. “Regression Models and Life-Tables.” Journal of the Royal Statistical Society: Series B (Methodological) 34 (2): 187–202.  
 Kaplan, Edward L, and Paul Meier. 1958. “Nonparametric Estimation from Incomplete Observations.” Journal of the American Statistical Association 53 (282): 457–81.
+
+```{r}
+
+```
 
 **To be continued !!!!**
 
