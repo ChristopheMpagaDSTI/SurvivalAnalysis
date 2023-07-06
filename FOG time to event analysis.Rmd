@@ -229,9 +229,9 @@ plot(fit_tte,
      xlim =c(0,250),
       xlab = "Time (seconds)",
      ylab = "Cum. Prob. of experiencing a FOG", 
-     main ="FOG cum. hazard from task start 
-     to the end",
+     main ="FOG cum. hazard has median 28.9 s",
      frame = F)
+abline(v = 28.9, col = "red")
 ```
 
 ```{r fit_tte summary}
@@ -239,14 +239,19 @@ fit_tte
 ```
 When considering time to the end of the task, half of patients experience FOG within `r summary(fit_tte)$table["median"]` s. 
 
-## Univariate analysis. 
+## Univariate analysis : Survival difference in group
 ### Sex
 ```{r}
 # fit
-fit_sex <- coxph(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
+fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
+fit_sex
+```
 
-# summary fit 
-p <- round(tidy(fit_sex)$p.value,2)
+
+```{r}
+# coxph
+coxph_sex <- coxph(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog)
+p <- round(tidy(coxph_sex)$p.value,2)
 ```
 p-value is `r p` .There is no effect of sex on time to FOG. 
 
@@ -313,14 +318,12 @@ Medication and Visit present a p value < 0.05. Medication increases the risk of 
 # Results  
 This cohort has 44 subjects, half of the subjects are at least 69 years old. `r 100*round(prop.table(table(Medication))[2],4)` % are under medication,  `r  100*round(prop.table(table(Visit))[2],2)`% present more than 1 round visit to hospital. Our analysis shows that at least half of the subjects time to FOG is  `r summary(fit_tte)$table["median"]` seconds. Subjects  under medication and having frequent visit to hospital are more likely to experience a FOG episode during a motor/kinetic  task like gait. 
 
-# Discussion 
-We aim at analyzing time to FOG in this study. Our analysis shows that FOG occurrence is related to Medication and Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds. 
-
-# Conclusion
-
+# Conclusion   
+We aim at analyzing time to FOG in this study. Our analysis shows that FOG occurrence is related to Medication and Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds. In this cohort , time to FOG episodes is related to Medication and visit to hospital. It could be interesting to investigate also survival difference given kinetic outcomes and tasks. 
 
 # References 
-
+Cox, David R. 1972. “Regression Models and Life-Tables.” Journal of the Royal Statistical Society: Series B (Methodological) 34 (2): 187–202.
+Kaplan, Edward L, and Paul Meier. 1958. “Nonparametric Estimation from Incomplete Observations.” Journal of the American Statistical Association 53 (282): 457–81.
 
 **To be continued !!!!**
 
