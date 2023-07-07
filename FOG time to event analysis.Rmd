@@ -67,9 +67,9 @@ let's join all metadata tables before diving into analysis.
   - `Id` The data series where the task was measured.
   - `Begin` Time (s) the task began.
   - `End` Time (s) the task ended.  
-Task One of seven tasks types in the DeFOG protocol, described on this page.
+Task One of seven tasks types in the DeFOG protocol, described on this [page](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).
 
-Remove **Visit** from **subjects** table , as we do not use it 
+we removed **Visit** from **subjects** table , as we do not use it 
 ```{r}
 subjects$Visit=NULL 
 ```
@@ -237,7 +237,7 @@ abline(v = 28.9, col = "red")
 ```{r fit_tte summary}
 fit_tte
 ```
-When considering time to the end of the task, half of patients experience FOG within `r summary(fit_tte)$table["median"]` s. 
+Half of patients experience FOG within `r summary(fit_tte)$table["median"]` s. 
 
 ## Univariate analysis : Survival difference in group
 ### Sex
@@ -246,7 +246,6 @@ When considering time to the end of the task, half of patients experience FOG wi
 (fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ factor(Sex), data = fog))
 
 ```
-
 
 ```{r}
 # coxph
@@ -257,17 +256,32 @@ p-value is `r p` .There is no effect of sex on time to FOG.
 
 ### Medication
 ```{r}
-(fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog))
+fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog)
 coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ factor(Medication), data = fog)
 
 # summary fit_medication
 p <- round(tidy(coxph_Med)$p.value,2)
 ```
-P-value is `r p` which is less than 0.05. There is huge effect of Medication in experiencing FOG holding other variables fixed. 
+P-value is `r p` which is less than 0.05. There is a huge effect of Medication in experiencing FOG holding other variables fixed. 
+
+```{r}
+plot(fit_Med, 
+     fun = "F",
+     col = c(1,2),
+     xlim = c(0,200),
+     frame = F,
+     xlab = "Time (seconds)",
+     ylab = "cum. prob. time to FOG",
+     main = "Time to fog is short for subjects under medication")
+#abline(v = 22.2, col = "blue")
+#abline(v = 28.9, col = "green")
+# legend()
+```
+
 
 ### Task type 
 ```{r}
-(fit_task <- survfit(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog))
+fit_task <- survfit(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
 coxph_task <- coxph(Surv(Begin,End, Kinetic) ~ factor(Task), data = fog)
 
 # summary type 
@@ -275,23 +289,35 @@ tidy(coxph_task) |>
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
+
 Three levels have significant effect on time to FOG,holding other variables fixed.  
 
 ### events Type 
 ```{r }
-(fit_type <- survfit(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog))
-coxph_type <- coxph(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
+fit_Type <- survfit(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
+coxph_Type <- coxph(Surv(Begin,End, Kinetic) ~ factor(Type), data = fog)
 
 # summary fit_type 
-tidy(coxph_type) |> 
+tidy(coxph_Type) |> 
   filter(p.value > 0.05) |>
   select(term, estimate,p.value)
 ```
-All p.values are greater than 0.05. There is no effect of Task type on FOG occurrence.  
+```{r}
+plot(fit_Type,
+     fun ="F",
+     xlim =c(0,250),
+     frame = F,
+     col = c(1,2,3),
+     xlab="Time(seconds)",
+     ylab = "cum prob of time to FOG w/r to type events"
+     )
+```
+
+All p.values are greater than 0.05. There is no effect of events type on FOG occurrence.
 
 ### visit 
 ```{r}
-(fit_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog))
+(fit_visit <- survfit(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog))
 coxph_visit <- coxph(Surv(Begin,End, Kinetic) ~ factor(Visit), data = fog)
 
 # summary fit_type
@@ -299,15 +325,26 @@ tidy(coxph_visit) |>
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
-p-value less than  0.05. Having more than one (1) round visit to hospital, has an influence on FOG occurrence. 
 
-### yearSinceDx : year since diagnosis. 
+```{r}
+plot(fit_visit,
+     fun ="F",
+     col = c(1,2),
+     frame = F,
+     xlim = c(0,250),
+      xlab ="Time(seconds)",
+     ylab ="cum prob of time to FOG w/r to visit to hospital")
+```
+
+p-value less than  0.05. Having visit to hospital, has an influence on FOG occurrence.   
+
+### yearSinceDx : year since diagnosis.  
 ```{r}
 (fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
                  data = fog))
 coxph_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
                  data = fog)
-p <- tidy(coxph_YSDx)$p.value
+p <- round(tidy(coxph_YSDx)$p.value,2)
 ```
 p-value is `r p` which is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
 
@@ -335,7 +372,6 @@ Kaplan, Edward L, and Paul Meier. 1958. “Nonparametric Estimation from Incompl
 
 ```
 
-**To be continued !!!!**
 
 
 
