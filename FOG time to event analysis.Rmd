@@ -11,10 +11,10 @@ knitr::opts_chunk$set(echo = FALSE)
 
 
 # Executive summary
-In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim at analyzing the expected duration of time until freezing of gait (FOG) occurs (time to FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It is a debilitating symptom that afflicts many people with Parkinson’s disease. Some events like start walking hesitation, turning body could be observed and help to detect FOG occurrence. 
+In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim at analyzing the expected duration of time until freezing of gait (FOG) occurs (time to FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It is a debilitating symptom that afflicts many people with Parkinson’s disease. Some events like start walking hesitation, turning body could be observed and help to detect FOG occurrence. a multivariate model, gives a better understanding of time to FOG in this cohort. 
 
 # Introduction  
-We aim at analyzing the time to FOG in 44 Parkinson disease patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task in lab, or during daily life activity.We will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, the influence/importance of some features in the time to occurrence of FOG from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
+We aim at analyzing the time to FOG in 44 Parkinson disease patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task in lab, or during daily life activity.We will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, investigate the influence of some features in time to FOG from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
 
 ```{r}
 rm(list=ls())
@@ -167,7 +167,7 @@ Sex  numerical summary
 (sex_prop_table <- prop.table(table(Sex)) %>% round(2))
 ```
 
-There is almost `r 100*prop.table(table(Sex))[2]`% of men in this cohort. 
+There is almost `r round(100*prop.table(table(Sex))[2],2)`% of men in this cohort. 
 
 ## Tasks
 What kind of tasks has been performed ?
@@ -192,15 +192,16 @@ What is the proportion of patient within each number of visit round ?
 ```{r}
 round(prop.table(table(Visit)),2)
 ```
-`r 100*round(prop.table(table(Visit))[1],2)`% of patients had one Visit, while the remaining had 2. 
+`r round(prop.table(table(Visit))[1],2)` of total patients had one Visit, while the remaining had 2. 
 
 ## Medication 
-How many subjects are under parkinsonian-medication ?
+
+What proportion of subjects are under Parkinson disease medication ?
 ```{r, eval=TRUE}
-100*round(prop.table(table(Medication)),4)
+round(prop.table(table(Medication)),2)
 ```
 
-`r 100*round(prop.table(table(Medication)),4)[2]`% are under medication. 
+`r round(prop.table(table(Medication)),2)[2]` of total patients are under medication. 
 
 # Modelling and Analysis : overall time to FOG. 
 ```{r}
@@ -260,6 +261,7 @@ Half of patients experience FOG within `r summary(fit_tte)$table["median"]` s.
 ```{r}
 # coxph
 coxph_sex <- coxph(Surv(Begin,End, Kinetic) ~ Sex, data = fog)
+tidy(coxph_sex) 
 p <- round(tidy(coxph_sex)$p.value,2)
 ```
 p-value is `r p` .There is no effect of sex on time to FOG. 
@@ -270,9 +272,10 @@ fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ Medication, data = fog)
 coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ Medication, data = fog)
 
 # summary fit_medication
+tidy(coxph_Med)
 p <- round(tidy(coxph_Med)$p.value,2)
 ```
-P-value is `r p` which is less than 0.05. There is a huge effect of Medication in experiencing FOG holding other variables fixed. 
+P-value is `r p` is less 0.05. There is an effect of  Medication on time to FOG , holding other variables fixed. 
 
 ```{r}
 fit_Med
@@ -305,7 +308,6 @@ tidy(coxph_task) |>
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
-
 Three levels have significant effect on time to FOG,holding other variables fixed.  
 
 ### events Type 
@@ -331,7 +333,7 @@ ggsurvplot(fit_Type,
      )
 ```
 
-2  p.values are greater than 0.05. There is no difference of Time to events in FOG occurrence.
+two  p.values are greater than 0.05. There is no difference of Time to events in FOG occurrence.
 
 ### visit 
 ```{r}
@@ -357,7 +359,7 @@ ggsurvplot(fit_visit,
      ylab ="cum prob of time to FOG w/r to visit to hospital")
 ```
 
-p-value is less than  0.05. Having visit to hospital, has an influence on FOG occurrence.  
+p-value is less than  0.05. There is a difference in time to FOG with respect to visit to hospital, holding other variables fixed.  
 
 
 ### yearSinceDx : year since diagnosis.  
