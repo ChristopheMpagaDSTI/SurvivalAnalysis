@@ -1,5 +1,5 @@
 ---
-title: "Time to freezing of gait analysis : A time to event analysis"
+title: "Freezing of gait survival analysis"
 output:
   pdf_document:
     toc: yes
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 
 # Executive summary
-In this project, we will be using data from  [kaggle](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim at analyzing the expected duration of time until freezing of gait (FOG) occurs (time to FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It is a debilitating symptom that afflicts many people with Parkinson’s disease. Some events like start walking hesitation, turning body could be observed and help to detect FOG occurrence. a multivariate model, gives a better understanding of time to FOG in this cohort. 
+In this project, we used data from  [**kaggle**](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim at analyzing the expected duration of time until freezing of gait (FOG) occurs (time to FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It is a debilitating symptom that afflicts many people with Parkinson’s disease. Some events like start walking hesitation, turning body could be observed and help to detect FOG occurrence. a multivariate model, gives a better understanding of time to FOG in this cohort. 
 
 # Introduction  
 We aim at analyzing the time to FOG in 44 Parkinson disease patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task in lab, or during daily life activity.We will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, investigate the influence of some features in time to FOG from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
@@ -39,9 +39,9 @@ defog_meta <- read_csv("defog_metadata.csv")
 ```
 
 # Data preparation, inspection and preprocessing.  
-let's join all metadata tables before diving into analysis. 
+let's join all metadata tables before diving into analysis. We will consider only data from defog metadata. 
 
-* defog_metadata.csv Identifies each series in the tdcsfog dataset by a unique Subject, Visit, Test, Medication condition.
+* defog_metadata.csv Identifies each series in the defog dataset by a unique Subject, Visit, Test, Medication condition.
 
     - `Visit`  Lab visits consist of a baseline assessment, two post-treatment assessments for different treatment stages, and one follow-up assessment.
     - `Test` Which of three test types was performed, with 3 the most challenging.
@@ -87,10 +87,9 @@ Note: we are going to consider only defog condition subjects.
   
 ## Data structure
 ### Ad event and tasks duration columns features: 
-  - `eventsDuration <- Completion - Init `
   - `tasksDuration <- Begin - end `   
 ```{r add duration col to events, message=FALSE}
-fog <- fog %>% filter(Begin > 0 & End > 0, End >= Completion,Begin < Init ) 
+fog <- fog %>% filter(Begin > 0 & End > Begin, End >= Completion & Begin < Init ) 
 
 # change some variables into factor 
 fog$Sex <- factor(fog$Sex, labels =c("Female","Male") )
@@ -141,7 +140,8 @@ cat("\n new table dimension\n")
 dim(fog)
 ```
 
-```{r}
+```{r,eval=FALSE}
+fog$Id <- NULL
 head(fog,3)
 ```
 
@@ -162,25 +162,20 @@ summary(Age)
 At least half of subjects are  69 years old or above.   
 
 ## Sex  
-Sex  numerical summary
+What is the proportion by sex ?  
 ```{r,eval=TRUE}
 (sex_prop_table <- prop.table(table(Sex)) %>% round(2))
 ```
 
-There is almost `r round(100*prop.table(table(Sex))[2],2)`% of men in this cohort. 
+There is almost `r round(prop.table(table(Sex))[2],2)` of men in this cohort. 
 
 ## Tasks
 What kind of tasks has been performed ?
 ```{r}
-unique(Task)
+cat("There is 7 different tasks with 16 levels")
+
 ```
 
-how many tasks had been performed ?  
-```{r,eval = FALSE}
-length(unique(Task))
-```
-
-There had been `r length(unique(Task))` task performed. 
 
 ## Visit 
 How many rounds of visit did the patient had ?
@@ -207,7 +202,7 @@ round(prop.table(table(Medication)),2)
 ```{r}
 #par(mfrow = c(1,2))
 #fit task duration 
-fit_tti <- survfit(Surv(tasksDuration, Kinetic) ~ 1, data = fog)
+fit_tti <- survfit(Surv(Begin,Init, Kinetic) ~ 1, data = fog)
 
 # fit from begin to end
 fit_tte <- survfit(Surv(Begin,End, Kinetic) ~ 1, data = fog)
@@ -228,7 +223,7 @@ plot(fit_tti,
 
 ```{r fit tti summary,eval = F}
 fit_tti
-When considering time to FOG initiation , half of patients experiment FOG within `r summary(fit_tti)$table["median"]` s. 
+#When considering time to FOG initiation , half of patients experiment FOG within `r summary(fit_tti)$table["median"]` s. 
 ```
 
 
@@ -275,7 +270,7 @@ coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ Medication, data = fog)
 tidy(coxph_Med)
 p <- round(tidy(coxph_Med)$p.value,2)
 ```
-P-value is `r p` is less 0.05. There is an effect of  Medication on time to FOG , holding other variables fixed. 
+P-value = `r p` and  is less than 0.05. There is an effect of  Medication on time to FOG , holding other variables fixed. 
 
 ```{r}
 fit_Med
@@ -296,7 +291,7 @@ ggsurvplot(fit_Med,
      title = "Time to fog is short for subjects under medication")
 
 ```
-
+Half subjects under medication condition, experience FOG within `r summary(fit_Med)$table[,"median"]`.
 
 ### Task type 
 ```{r}
@@ -308,7 +303,7 @@ tidy(coxph_task) |>
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
-Three levels have significant effect on time to FOG,holding other variables fixed.  
+Three levels have significant effect on time to FOG,holding other variables fixed.   
 
 ### events Type 
 ```{r }
@@ -320,6 +315,7 @@ tidy(coxph_Type) |>
   filter(p.value <= 0.05) |>
   select(term, estimate,p.value)
 ```
+There is no effect of type of events on time to FOG.  
 
 ```{r}
 ggsurvplot(fit_Type,
@@ -333,7 +329,6 @@ ggsurvplot(fit_Type,
      )
 ```
 
-two  p.values are greater than 0.05. There is no difference of Time to events in FOG occurrence.
 
 ### visit 
 ```{r}
@@ -358,9 +353,7 @@ ggsurvplot(fit_visit,
     xlab ="Time(seconds)",
      ylab ="cum prob of time to FOG w/r to visit to hospital")
 ```
-
 p-value is less than  0.05. There is a difference in time to FOG with respect to visit to hospital, holding other variables fixed.  
-
 
 ### yearSinceDx : year since diagnosis.  
 ```{r}
@@ -370,25 +363,25 @@ coxph_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
                  data = fog)
 p <- round(tidy(coxph_YSDx)$p.value,2)
 ```
-p-value is `r p` which is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
+p-value = `r p` which is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
 
 ## Multivariate analysis 
 ```{r}
-fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age +  Medication  +
-                                               Visit + YearsSinceDx),
+fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age + 
+                             Medication  + Visit + YearsSinceDx),
                  data = fog)
 tidy(fit_mult) %>% 
   filter(p.value <= 0.05)
 ```
 
 
-Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 0.7 holding visit fixed, while , visit does the same with an increase of time to FOG by a rate of 0.2 while holding other features fixed. 
+Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 0.7 holding other variables fixed, while , visit does the same with an increase of time to FOG by a rate of 0.2 while holding other features fixed. 
 
 # Results  
 This cohort has 44 subjects, half of the subjects are at least 69 years old. `r 100*round(prop.table(table(Medication))[2],4)` % are under medication,  `r  100*round(prop.table(table(Visit))[2],2)`% present more than 1 round visit to hospital. Our analysis shows that at least half of the subjects time to FOG is  `r summary(fit_tte)$table["median"]` seconds. Subjects  under medication and having frequent visit to hospital are more likely to experience a FOG episode during a motor/kinetic  task like gait. 
 
 # Conclusion   
-We aim at analyzing time to FOG in this study. Our analysis shows that FOG occurrence is related to Medication and Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds.It could be interesting to investigate also survival difference given kinetic outcomes and tasks. 
+We aim at analyzing time to FOG in this study. Our analysis shows that FOG early occurrence when subjects are under Medication and having Visit to hospital. Overall, half of subjects experience FOG within 28.9 seconds.It could be interesting to investigate why subjects under medication and having visit to hospital experience earlier FOG. Also, survival difference given kinetic outcomes and tasks could be investigate too. 
 
 # References 
 Cox, David R. 1972. “Regression Models and Life-Tables.” Journal of the Royal Statistical Society: Series B (Methodological) 34 (2): 187–202.  
