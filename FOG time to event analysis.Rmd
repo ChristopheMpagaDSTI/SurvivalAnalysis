@@ -365,17 +365,18 @@ p <- round(tidy(coxph_YSDx)$p.value,2)
 ```
 p-value = `r p` which is > 0.05. There is no effect of Year since diagnosis on FOG occurrence.  
 
-## Multivariate analysis 
+## Multivariate analysis : regression
 ```{r}
 fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age + 
                              Medication  + Visit + YearsSinceDx),
                  data = fog)
-tidy(fit_mult) %>% 
-  filter(p.value <= 0.05)
+tidy(fit_mult, conf.int = TRUE) %>% 
+  filter(p.value <= 0.05) %>% 
+  mutate(Hazard_Rate = exp(estimate))
 ```
 
 
-Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 0.7 holding other variables fixed, while , visit does the same with an increase of time to FOG by a rate of 0.2 while holding other features fixed. 
+Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 2.09s holding other variables fixed, while , visit does the same with an increase of time to FOG by a rate of 1.27s while holding other features fixed. 
 
 # Results  
 This cohort has 44 subjects, half of the subjects are at least 69 years old. `r 100*round(prop.table(table(Medication))[2],4)` % are under medication,  `r  100*round(prop.table(table(Visit))[2],2)`% present more than 1 round visit to hospital. Our analysis shows that at least half of the subjects time to FOG is  `r summary(fit_tte)$table["median"]` seconds. Subjects  under medication and having frequent visit to hospital are more likely to experience a FOG episode during a motor/kinetic  task like gait. 
@@ -386,6 +387,8 @@ We aim at analyzing time to FOG in this study. Our analysis shows that FOG early
 # References 
 Cox, David R. 1972. “Regression Models and Life-Tables.” Journal of the Royal Statistical Society: Series B (Methodological) 34 (2): 187–202.  
 Kaplan, Edward L, and Paul Meier. 1958. “Nonparametric Estimation from Incomplete Observations.” Journal of the American Statistical Association 53 (282): 457–81.
+
+https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data
 
 ```{r}
 
