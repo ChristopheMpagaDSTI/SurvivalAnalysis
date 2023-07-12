@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE)
 In this project, we used data from  [**kaggle**](https://www.kaggle.com/competitions/tlvmc-parkinsons-freezing-gait-prediction/data).We aim at analyzing the expected duration of time until freezing of gait (FOG) occurs (time to FOG). [FOG]() is a pattern occurring in patient with Parkinson disease. It is a debilitating symptom that afflicts many people with Parkinson’s disease. Some events like start walking hesitation, turning body could be observed and help to detect FOG occurrence. a multivariate model, gives a better understanding of time to FOG in this cohort. 
 
 # Introduction  
-We aim at analyzing the time to FOG in 44 Parkinson disease patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task in lab, or during daily life activity.We will analyse data from lab tasks. Our main goal is to analyse and explain overall FOG time to event model, investigate the influence of some features in time to FOG from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
+We aim at analyzing the time to FOG in 44 Parkinson disease patients, with median age of 69 years old. Here FOG is the event of interest and it is expected within the execution of a given task in lab, or during daily life activity.We will analyse data from home tasks. Our main goal is to analyse and explain overall FOG time to event model, investigate the influence of some features in time to FOG from the beginning to the end of the task. To achieve this, we model our data under [kaplan-Meier]() model. 
 
 ```{r}
 rm(list=ls())
@@ -80,11 +80,18 @@ subjects$Visit=NULL
   fog <- inner_join(events,tasks,by="Id") %>% 
   inner_join(defog_meta,by ="Id")  %>% 
   inner_join(subjects,by = "Subject") 
+
+# remove tables 
 rm(events,tasks,defog_meta,subjects)
 ```
 
+
+
 Note: we are going to consider only defog condition subjects. 
-  
+```{r}
+head(fog)
+```
+
 ## Data structure
 ### Ad event and tasks duration columns features: 
   - `tasksDuration <- Begin - end `   
@@ -249,71 +256,144 @@ Half of patients experience FOG within `r summary(fit_tte)$table["median"]` s.
 ### Sex
 ```{r}
 # fit
-(fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ Sex, data = fog))
+fit_sex <- survfit(Surv(Begin,End, Kinetic) ~ Sex , data = fog,id = Subject)
 
 ```
 
 ```{r}
 # coxph
-coxph_sex <- coxph(Surv(Begin,End, Kinetic) ~ Sex, data = fog)
-tidy(coxph_sex) 
+(coxph_sex <- coxph(Surv(Begin,End, Kinetic) ~ Sex , data = fog,id = Subject))
+tidy(coxph_sex)  %>% 
+  filter(!grepl("(Sub*)",term))
 p <- round(tidy(coxph_sex)$p.value,2)
 ```
 p-value is `r p` .There is no effect of sex on time to FOG. 
 
+```{r,eval=FALSE}
+ggsurvplot(fit_sex,
+     fun = "event",
+     conf.int = F,
+     risk.table.col="strata",
+     color = "strata",
+     surv.median.line = "hv",
+     size = 0.7,
+     xlim = c(0,250),
+     break.time.by = 50,
+     xlab = "Time (seconds)",
+     ylab = "cum. prob. time to FOG",
+     title = "Time to fog is short for subjects under medication"
+     )
+```
+
 ### Medication
 ```{r}
-fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ Medication, data = fog)
-coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ Medication, data = fog)
+fit_Med <- survfit(Surv(Begin,End, Kinetic) ~ Medication , data = fog,
+                   id = Subject)
+(coxph_Med <- coxph(Surv(Begin,End, Kinetic) ~ Medication , data = fog,
+                   id = Subject))
 
+#frailty
 # summary fit_medication
-tidy(coxph_Med)
-p <- round(tidy(coxph_Med)$p.value,2)
+tidy(coxph_Med) %>% 
+  filter(p.value <= 0.05) |>
+  select(term, estimate, p.value) %>% 
+  filter(!(grepl("(Subj*)",term)))
+(p <- round(tidy(coxph_Med)$p.value,2))
 ```
 P-value = `r p` and  is less than 0.05. There is an effect of  Medication on time to FOG , holding other variables fixed. 
 
 ```{r}
-fit_Med
+#fit_Med
+plot(fit_Med,
+     fun = "F",
+     xlim = c(0,250),
+     col = 1:2,
+     lwd= 1.5,
+     frame = F,
+     xlab = "Time(seconds)", 
+     ylab = "Cumulative prob. to FOG ",
+     main = "Time to FOG is short for subject under Medication")
+legend ("bottomright",legend = levels(Medication),pch = "_", col = 1:2)
 ```
 
-```{r}
-ggsurvplot(fit_Med, 
+
+
+```{r Medication_cum_prob}
+ggsurvplot(fit_Med,data =fog, 
      fun = "event",
-     #color = "strata",
-     conf.int = F,
+     color = "strata",
+     #conf.int = T,
      risk.table.col="strata",
      surv.median.line = "hv",
      size = 0.7,
-     xlim = c(0,300),
+     xlim = c(0,250),
      break.time.by = 50,
      xlab = "Time (seconds)",
      ylab = "cum. prob. time to FOG",
      title = "Time to fog is short for subjects under medication")
 
 ```
+
+```{r Medication_cum_haz}
+ggsurvplot(fit_Med,data =fog, 
+     fun = "cumhaz",
+     color = "strata",
+     #conf.int = T,
+     risk.table.col="strata",
+     surv.median.line = "hv",
+     size = 0.7,
+     xlim = c(0,250),
+     break.time.by = 50,
+     xlab = "Time (seconds)",
+     ylab = "cum. prob. time to FOG",
+     title = "Subject under Medication are more likely to experieb-nce earlier a FOG")
+
+```
 Half subjects under medication condition, experience FOG within `r summary(fit_Med)$table[,"median"]`.
 
 ### Task type 
 ```{r}
-fit_task <- survfit(Surv(Begin,End, Kinetic) ~ Task, data = fog)
-coxph_task <- coxph(Surv(Begin,End, Kinetic) ~ Task, data = fog)
+fit_task <- survfit(Surv(Begin,End, Kinetic) ~ Task, 
+                   id = Subject, data = fog)
+coxph_task <- coxph(Surv(Begin,End, Kinetic) ~ Task ,
+                   id = Subject, data = fog)
 
 # summary type 
 tidy(coxph_task) |> 
   filter(p.value <= 0.05) |>
-  select(term, estimate,p.value)
+  select(term, estimate,p.value) %>% 
+  filter(!(grepl("(Subj*)",term)))
 ```
-Three levels have significant effect on time to FOG,holding other variables fixed.   
+Three levels have significant effect on time to FOG,holding other variables fixed.  
+
+```{r}
+ggsurvplot(fit_task,data =fog, 
+     fun = "event",
+     color = "strata",
+     #conf.int = T,
+     risk.table.col="strata",
+     surv.median.line = "hv",
+     size = 0.7,
+     xlim = c(0,250),
+     break.time.by = 50,
+     xlab = "Time (seconds)",
+     ylab = "cum. prob. time to FOG",
+     title = "Time to fog is short for subjects under medication")
+
+```
 
 ### events Type 
 ```{r }
-fit_Type <- survfit(Surv(Begin,End, Kinetic) ~ Type, data = fog)
-coxph_Type <- coxph(Surv(Begin,End, Kinetic) ~ Type, data = fog)
+fit_Type <- survfit(Surv(Begin,End, Kinetic) ~ Type, data = fog,
+                   id = Subject)
+coxph_Type <- coxph(Surv(Begin,End, Kinetic) ~ Type + Subject, data = fog,
+                   id = Subject)
 
 # summary fit_type 
 tidy(coxph_Type) |> 
   filter(p.value <= 0.05) |>
-  select(term, estimate,p.value)
+  select(term, estimate,p.value) %>% 
+  filter(!(grepl("(Subj*)",term)))
 ```
 There is no effect of type of events on time to FOG.  
 
@@ -332,16 +412,17 @@ ggsurvplot(fit_Type,
 
 ### visit 
 ```{r}
-(fit_visit <- survfit(Surv(Begin,End, Kinetic) ~ Visit, data = fog))
-coxph_visit <- coxph(Surv(Begin,End, Kinetic) ~ Visit, data = fog)
+fit_visit <- survfit(Surv(Begin,End, Kinetic) ~ Visit, data = fog ,id = Subject)
+(coxph_visit <- coxph(Surv(Begin,End, Kinetic) ~ Visit , id = Subject, data = fog))
 
 # summary fit_type
 tidy(coxph_visit) |> 
   filter(p.value <= 0.05) |>
-  select(term, estimate,p.value)
+  select(term, estimate,p.value) %>% 
+  filter(!(grepl("(Subject*)",term)))
 ```
 
-```{r}
+```{r visit event_plot}
 ggsurvplot(fit_visit,
      fun ="event",
      conf.int = F,
@@ -353,13 +434,25 @@ ggsurvplot(fit_visit,
     xlab ="Time(seconds)",
      ylab ="cum prob of time to FOG w/r to visit to hospital")
 ```
+```{r vist_cumhaz_plot}
+ggsurvplot(fit_visit,
+     fun ="cumhaz",
+     conf.int = F,
+     risk.table.col="strata",
+     surv.median.line = "hv",
+     size = 0.7,
+     break.time.by = 50,
+     xlim = c(0,250),
+    xlab ="Time(seconds)",
+     ylab ="cum hazard of time to FOG w/r to visit to hospital")
+```
 p-value is less than  0.05. There is a difference in time to FOG with respect to visit to hospital, holding other variables fixed.  
 
 ### yearSinceDx : year since diagnosis.  
 ```{r}
-(fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
-                 data = fog))
-coxph_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx,
+fit_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx, id = Subject, 
+                 data = fog)
+coxph_YSDx<- coxph(Surv(Begin,End, Kinetic) ~ YearsSinceDx , id = Subject, 
                  data = fog)
 p <- round(tidy(coxph_YSDx)$p.value,2)
 ```
@@ -368,13 +461,13 @@ p-value = `r p` which is > 0.05. There is no effect of Year since diagnosis on F
 ## Multivariate analysis : regression
 ```{r}
 fit_mult<- coxph(Surv(Begin,End, Kinetic) ~ (Sex + Age + 
-                             Medication  + Visit + YearsSinceDx),
+                             Medication  + Visit + YearsSinceDx) , id = Subject,
                  data = fog)
 tidy(fit_mult, conf.int = TRUE) %>% 
   filter(p.value <= 0.05) %>% 
-  mutate(Hazard_Rate = exp(estimate))
+  mutate(Hazard_Rate = exp(estimate)) %>% 
+  filter(!(grepl("(Subject*)",term)))
 ```
-
 
 Medication and Visit present a p value < 0.05. Medication increases the risk of experiencing FOG by 2.09s holding other variables fixed, while , visit does the same with an increase of time to FOG by a rate of 1.27s while holding other features fixed. 
 
