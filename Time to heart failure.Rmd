@@ -1,0 +1,446 @@
+---
+title: "Time to heart failure survival analysis"
+author: 
+  - "Christophe Mpaga, Ahmed Oulad Amara, Adrien Parruitte"
+
+  - "Data ScienceTech Institute"
+
+output: 
+  pdf_document: 
+    toc: true
+  df_print: paged
+header-includes:
+  - \renewcommand{\contentsname}{\newpage Contents}
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+rm(list = ls())
+```
+\newpage
+# Introduction
+
+Heart failure is a chronic condition characterized by the heart's inability to pump an adequate amount of blood to meet the body's demands. It can occur when the heart muscle becomes weakened or damaged, resulting in symptoms such as shortness of breath, fatigue, and fluid retention. Various factors, including coronary disease, diabetes, and obesity, can contribute to the development of heart failure. 
+In this study, our goal is to evaluate the significance of different parameters on the survival of patients with heart failure. We analyze the occurrence of patient deaths as the event of interest.
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+library(survival)
+library(tidyverse)
+library(survminer)
+library(knitr)
+library(gridExtra)
+```
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+font_main=11
+font_axis=9
+font_tickslab=9
+font_legend=9
+centre = theme_grey() + theme(plot.title = element_text(hjust = 0.5, face = "bold", size=10))
+theme <- theme_survminer(
+  base_size = 10,
+  base_family = "",
+  font.main = c(font_main, "plain", "black"),
+  font.submain = c(font_main-1, "plain", "black"),
+  font.x = c(font_axis, "plain", "black"),
+  font.y = c(font_axis, "plain", "black"),
+  font.caption = c(font_main, "plain", "black"),
+  font.tickslab = c(font_tickslab, "plain", "black"),
+  font.legend = c(font_legend, "plain", "black"),
+)
+
+```
+
+
+# Data description
+
+This section provides a description of the dataset used in this study.Dataset was introuduced by Ahmad et al. [@Ahmad2017data], it was used a survival analysis study of heart failure [@ahm2017sur]. The dataset consists of individuals who were patients at the Institute of Cardiology and Allied hospital Faisalabad-Pakistan during April-December (2015).
+299 patients are inluded in the dataset, 105 are women and are 194 men. They are between 40 and 95 years. All have left ventricular systolic dysfunction, belonging to  New York Heart Association (NYHA) class III and IV.  Follow up time was between 4 to 285 days.
+Class III means patients have marked limitations of physical activity. They are comfortable at rest but experience symptoms with less than ordinary physical activity. Class IV means patients are unable to carry out any physical activity without discomfort. They may have symptoms even at rest and are often bedridden. 
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+data <- read_csv("/Users/mpaga/Desktop/Data_science/DSTI/Courses/SurvivalAnalysis/Survival_Analysis_Project/data/heart_failure_clinical_records_dataset.csv")
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+head(data)
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+summary(data)
+```
+The database has 13 features, including Age, Anemia, High Blood Pressure, Creatinine phosphokinase, Diabetes, Ejection Fraction, Sex, Platelets, Serum Creatinine, Serum Sodium, Smoking, Time, and Death Event. Out of these features, 5 are Boolean variables, namely Anemia, High Blood Pressure, Diabetes, Sex, and Smoking.
+
+
+We added two new features to the dataset: "over60" and "EF_levels." The "over60" feature categorizes individuals as either over 60 years old or not, based on their age. The "EF_levels" feature categorizes individuals into 3 different groups based on their Ejection Fraction (EF) "EF <= 30", "30 < EF <= 45"and  "EF > 45". These new features allow us to create Kaplan-Meier survival curves and analyze the data based on these specific characteristics.
+
+The presence of time and death event in this dataset makes it suited for survival analysis. The unit of time in the dataset is measured in days. Since not all patients experienced the event of interest (death), the dataset contains right-censored data.
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+data$sex <- factor(data$sex, labels= c("female", "male"))
+data$anaemia <- factor(data$anaemia)
+data$diabetes <- factor(data$diabetes)
+data$high_blood_pressure <- factor(data$high_blood_pressure)
+data$smoking <- factor(data$smoking)
+```
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+# Define the breakpoints for the three levels
+breakpoints <- c(-Inf, 30, 45, Inf)
+# Divide EF into three levels
+data$EF_levels <- cut(data$ejection_fraction, breaks = breakpoints, labels = c("EF <= 30", "30 < EF <= 45", "EF > 45"))
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+# Create a new column 'new_column' and set it to 0 by default
+data$bad_platelet <- 1
+
+# Use conditional statements to assign 1 to 'new_column' if 'value' meets the condition
+data$bad_platelet[data$platelets >= 150000 & data$platelets <= 450000] <- 0
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+data$over60 <- cut(data$age, breaks = c(-Inf, 60, Inf), labels = c("<=60", ">60"), include.lowest = TRUE)
+```
+# Kaplan-Meyer estimator
+
+Kaplan-Meyer estimator[@km1958non] is non-parmetric method to estimate survival probability.
+
+ 
+## Overall survival curve for all patients
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+fit.KM <- survfit(Surv(time,DEATH_EVENT) ~ 1, data = data)
+fit.KM
+```
+
+96 (32%) patients died due to the Cardiovascular Heart Disease (CHD). The median, 0.95LCL and 0.95UCl are NA because too many data are right censored. We need to go deeper in the analysis. 
+
+
+```{r, echo=FALSE, warning=FALSE,fig.height=3,fig.width=6, fig.cap="Kaplan-Meier Curve for Heart Failure Survival"}
+#layout_matrix_1 <- matrix(1:2, ncol = 1)  
+#layout(layout_matrix_1)
+# center tilte 
+ggsurvplot(fit.KM,data=data, conf.int=TRUE, pval=TRUE, #risk.table=TRUE, risk.table.height=.10,
+           palette=c("dodgerblue2", "orchid2"), legend="none", ylim=c(0.5,1),
+           xlab = "Day", ggtheme = theme
+           )
+```
+
+
+## Comparing Survival between multiple groups 
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+fit.KM1 <- survfit(Surv(time,DEATH_EVENT) ~ EF_levels, data = data)
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+splots <- list()
+
+splots[[1]] <- ggsurvplot(fit.KM1,
+                          conf.int=TRUE,
+                          pval=TRUE,
+           legend.title="EF levels", 
+           legend.lab=c("EF <= 30", "30 < EF <= 45", "EF > 45"),
+           title="EF levels Survival Curve", xlab = "Day",   
+           pval.size=4,
+           legend=c(0.15,0.25),
+           pval.coord=c(0,0),
+            ggtheme = centre,
+           data=data, size =1)
+``` 
+ 
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+fit.KM2 <- survfit(Surv(time,DEATH_EVENT) ~ high_blood_pressure, data = data)
+fit.KM2
+```
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+splots[[2]] <- ggsurvplot(fit.KM2, 
+                          conf.int=TRUE,
+                          pval=TRUE,
+           legend.title="Blood pressure", 
+           legend.lab=c("low", "high"),
+           title="High blood pressure Survival Curve", 
+           xlab = "Day",ylab = "",
+           pval.size=4,
+           legend=c(0.15,0.25),
+           pval.coord=c(0,0), 
+           ggtheme = centre,
+           data=data, size =1)
+```
+
+```{r, echo=FALSE,  warning=FALSE,fig.height=6,fig.width=14, fig.cap="Survival curves for EF level and High blood pressure" }
+arrange_ggsurvplots(splots, print = TRUE,ncol = 2, nrow = 1)
+```
+
+
+### The impact of Ejection fraction
+
+Ejection fraction measures the ablity of heart to pump oxygen-rich blood to body\footnote{https://my.clevelandclinic.org/health/articles/16950-ejection-fraction}.To estimate the survival impact of this covariate, we employ the Kaplan-Meier model.
+   
+
+With a p-value less than 0.0001, the EF levels are indeed statistically significant to the death for patient with heart failure. Observing the survival curve plot for the EF levels we see that the probability of survival decreases more rapidly in the group with EF levels below 30 compared to the group with higher EF levels.
+
+### The impact of high blood pressure
+
+High blood pressure forces the heart to work harder to pump blood to the rest of the body this increase the risk of heart attack\footnote{https://www.mayoclinic.org/diseases-conditions/high-blood-pressure/in-depth/high-blood-pressure/art-20045868}. This make it important to explore the survival impact of  this covariate.
+ 
+ 
+
+With a p-value of less than 0.05, high blood pressure is  indeed statistically significant factor in death for patient with heart failure.
+
+
+
+### Summary table of Log-Rank Test
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE, fig.height=4}
+#creatinine_phosphokinase
+#platelets      
+#serum_creatinine  
+#serum_sodium
+# names categorical columns 
+cov_name <- c("anaemia", "diabetes", "high_blood_pressure", "sex", "smoking", "EF_levels", "bad_platelet", "over60")
+#columns_to_remove <- c("time", "DEATH_EVENT", "age", "ejection_fraction")
+#cov_name <- cov_name[!cov_name %in% columns_to_remove]
+#p_values <- vector("numeric", length = ncol(data) - 2)
+tmpfun <- function(x) as.formula(paste("Surv(time,DEATH_EVENT)",x,sep="~"))
+for (i in 1:length(cov_name)){
+  longrank_test <- survdiff(tmpfun(cov_name[i]), data = data)
+  #cox_model <- coxph(Surv(time, DEATH_EVENT) ~ cov_name[i] , data = data)
+  p_value <-longrank_test$pvalue
+  print(paste(cov_name[i], ":", p_value))
+}
+```
+A Log-rank test was conducted to determine whether there are differences in survival between groups on each of the categorical covariates. The results are summarized in the following table:
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE }
+f <- data.frame(
+  covariate = c("Sex", "Smoking", "Diabetes", "Aenemia", "EF levels", "bad platelet", "Age over 60", "Blood Pressure"),
+  p_value = c(0.95, 0.96, 0.84, 0.099, 1.81e-07, 0.26, 0.02, 0.05)
+)
+kable(t(f),align = "c", caption = "Summarize of Log-Rank Test")
+
+```
+
+
+We can notice that the p-value is below 0.05 for EF levels, High blood pressure, and Age over 60. Therefore, we reject the null hypothesis, indicating that these covariates have a statistically significant impact on survival.
+
+## The limit of Kaplan-Meyer estimator
+
+The simplicity non-parametric nature and ability to estimate survival probability of   Kaplan-Meyer estimator make the model  it an essential and  tool in any survival analysis study. Yet the model has it limitations do not allow to estimate estimate hazard ratio it is limit only categorical  covariate.  In the next section will introduce the Cox Proportional Hazards model, a semi-parametric model  to overcome some of these limitations.
+
+# Cox Proportional Hazards Model
+
+Let's assume that our survival function follow a semi-parametric model.  
+
+## Univariate Cox regression
+
+We will be examining the significance of each covariate using the Cox regression model. The results will be presented in a table, which includes the covariates, their beta coefficients, hazard ratios, lower confidence intervals, upper confidence intervals, and p-values.
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+head(data)
+```
+
+```{r, echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+column_names <- names(data)
+print(column_names)
+```
+
+```{r,echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+columns_to_remove <- c("time", "DEATH_EVENT", "EF_levels")
+column_names <- column_names[!column_names %in% columns_to_remove]
+
+#indices_to_delete <- c(5,12, 13,14,15)
+covariates <- column_names #[-indices_to_delete]
+#covariates <- append(covariates, 'EF_levels')
+covariates
+```
+
+```{r,  echo=FALSE, message=FALSE, results=FALSE, warning=FALSE}
+univ_formulas <- sapply(covariates,
+                        function(x) as.formula(paste('Surv(time, DEATH_EVENT)~', x)))
+
+univ_models <- lapply( univ_formulas, function(x){coxph(x, data = data)})
+
+
+# Extract data 
+univ_results <- lapply(univ_models,
+                       function(x){ 
+                          x <- summary(x)
+                          p.value<-signif(x$coef[5], digits=2)
+                          #wald.test<-signif(x$wald["test"], digits=2)
+                          beta<-signif(x$coef[1], digits=2);#coeficient beta
+                          HR <-signif(x$coef[2], digits=2);#exp(beta)
+                          HR.confint.lower <- signif(x$conf.int[,"lower .95"],2)
+                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                          
+                          res<-c(beta, HR, HR.confint.lower,HR.confint.upper, p.value)
+                          names(res)<-c("beta", "HR", "lower_ci"," upper_ci", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+
+res <- t(as.data.frame(univ_results, check.names = FALSE))
+res <- as.data.frame(res)
+
+
+# add EF_levels p-value and HR
+fit_cph <- coxph(Surv(time, DEATH_EVENT) ~ EF_levels, data = data)
+
+x <- summary(fit_cph)
+p.value<-signif(x$coef[,5], digits=2)
+beta<-signif(x$coef[,1], digits=2);#coeficient beta
+HR <-signif(x$coef[,2], digits=2);#exp(beta)
+HR.confint.lower <- signif(x$conf.int[,"lower .95"],2)
+HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+
+c1<- c(as.numeric(beta[1]), as.numeric(HR[1]),as.numeric(HR.confint.lower[1]), as.numeric(HR.confint.upper[1]), as.numeric(p.value[1]) )
+
+c2<- c(as.numeric(beta[2]), as.numeric(HR[2]),as.numeric(HR.confint.lower[2]), as.numeric(HR.confint.upper[2]), as.numeric(p.value[2]) )
+
+
+updated_df <- rbind(res, c1, c2)
+
+
+rownames(updated_df)[nrow(updated_df) - 1] <- "30 <= EF vs 30 < EF <= 45 "
+rownames(updated_df)[nrow(updated_df)] <- "30 <= EF vs EF > 45"
+```
+
+
+For table below we say that for all these covariates, including anaemia, creatinine_phosphokinase, diabetes, platelets, sex, and smoking, have p-values greater than the chosen significance level (e.g., 0.05). This suggests that these covariates are statistically insignificant, indicating that there is no strong evidence of a significant association between these variables and the hazard rate.
+
+```{r, echo=FALSE, warning=FALSE}
+kable( as.data.frame(updated_df), caption = "Univariate Cox regression result")
+```
+
+Ejection Fraction (EF) appears to be a significant factor as it shows statistical significance for both comparisons: 30 <= EF vs 30 < EF <= 45 and 30 <= EF vs EF > 45, with p-values below 0.05.
+For both EF level comparisons, the negative beta coefficients indicate a negative association between EF levels and the hazard rate. The hazard ratios of 0.31 and 0.41 suggest lower hazard rates for the specified EF levels compared to the baseline group.
+
+High Blood Pressure is another significant factor with p-value = 0.037.  These covariates have The positive beta coefficient of 0.44 suggests a positive association High Blood Pressure and risk of death.
+
+For the Age covariate the p-value is less than 0.05 but  the hazard ratio is equal to 1 this means that we cannot reject the null hypothesis. also it suggests that there is no significant difference in survival between the groups for this covariate.
+On the other hand, for the covariate over60 the p-value being less than 0.05 and the hazard ratio equal 1.6, this indicates that patients over 60 years old have a 1.6 times higher risk of death compared to patients below 60 years old.
+
+ 
+## Multivariate  analysis  
+### Additive effect of age and anaemia.  
+```{r,  echo=FALSE, warning=FALSE, results='asis'}
+age_anaemia_fit <- survfit(Surv(time, DEATH_EVENT) ~ over60 + anaemia , data = data)
+if (surv_pvalue(age_anaemia_fit,data)$pval <= 0.05){
+  ggsurvplot(age_anaemaia_fit,  conf.int = TRUE,data=data, ggtheme = theme)
+ } else {
+    cat("p-value =",round(surv_pvalue(age_anaemia_fit,data)$pval,3),
+        "There is no difference in survival time with respect to age and anaemia" )
+  }
+```
+
+### Additive effect of high blood pressure and anaemia. 
+```{r  echo=FALSE, warning=FALSE, results='asis'}
+age_anaemia_fit <- survfit(Surv(time, DEATH_EVENT) ~ high_blood_pressure + anaemia , data = data)
+if(surv_pvalue(age_anaemia_fit,data)$pval <= 0.05){
+        ggsurvplot(sfit, 
+           #fun = "event", 
+           pval = TRUE , data = data, 
+           legend.title="",
+           title="additive effect of anaemia and high blood pressure", ggtheme = theme
+           )
+} else {
+  cat("p-value = ",surv_pvalue(age_anaemia_fit,data)$pval,"There is no additive effect of hbp and anaemia")
+}
+```
+
+
+### Full model 
+
+Under semi-parametric model assumption, patients presenting `high_blood_pressure`, `EF_levels30 < EF <= 45`, `EF_levelsEF > 45`, `age > 60`, `serum_creatinine`, `serum_sodium`  are more likely to experience heart failure and die. Moreover, presenting a `high_blood_pressure` increases the risk of heart failure by a hazard rate of 1.53, holding other covariates fixed, while, `EF_levels30 < EF <= 45`, `EF_levelsEF > 45`, `age > 60`, `serum_creatinine` and  `serum_sodium`  increases the risk of dying from heart failure with hazard rate magnitude greater or almost equal  to 1.
+
+```{r,  echo=FALSE,  warning=FALSE}
+fit_cph <- step(coxph(Surv(time, DEATH_EVENT) ~., 
+                 data = data),direction= "both",trace = 0)
+#fit_cph
+summary(fit_cph) %>% 
+  coefficients() %>% 
+  as.data.frame() %>% 
+  filter(`Pr(>|z|)` <= 0.05) %>% 
+  select(contains(c("coef","Pr"))) -> sum
+
+knitr::kable( as.data.frame(sum), caption = "Full model result under Cox regression")
+```
+
+
+# Parametric model 
+
+We fit a full weibull parametric model and compare it to non parametric KM model.  
+
+```{r,echo=FALSE,  warning=FALSE}
+library(flexsurv)
+fitparam <- flexsurvreg(Surv(time, DEATH_EVENT) ~ . , 
+                        data = data,
+                        dist = "weibull")
+
+```
+
+
+```{r,echo=FALSE,  warning=FALSE, fig.height=6,fig.width=12, fig.cap="Comparaison between Weibull and KM model"}
+par (mfrow = c(1,2))
+
+# plot wb model 
+plot(fitparam,
+     frame = F,
+     col = "red",
+     type = "survival", 
+     main= "weibull model",
+     xlab = "Days",
+     ylab = "survival probability",
+     ylim= c(0.4,1), xlim = c(0,300)
+     )
+abline(h = 0.5, lty="dashed",col ="blue")
+
+# plot KM model 
+plot(fit.KM,
+     col = "green",
+     frame = F,
+     main = "KM model", 
+     xlab = "Days",
+     ylab = "survival probabilty",
+     ylim= c(0.4,1), xlim = c(0,300))
+abline(h = 0.5,lty="dashed",col ="blue")
+```
+
+
+This plot suggest that we could model this data under a linear model with a negative slope. As it decreases very fast. However, this is somewhat a stepwise and not strictly a smooth curve, but a tiny smooth curve.Hence, KM model could suffice to model this dataset. We would suggest that a non-parametric or a semi-parametric models could be a good bet.  
+
+\newpage
+# Results
+
+In this study, we analyzed time to heart failure in a cohort, with death as the event of interest. Our results revealed several significant findings. Firstly, there was no observed median time to death in this cohort. Secondly, our analysis demonstrated that high blood pressure, ejection fraction (EF), and aging have a significant impact on survival time. Surprisingly, we found no significant effect of smoking, diabetes, or anemia on survival time.
+There was a notable difference in survival time based on EF and high blood pressure. Specifically, approximately half of the subjects with an EF less than 30 are expected to experience death after an average of 175 days.
+Moreover, using an additive model with covariates such as high blood pressure, EF level, serum creatinine, and serum sodium, we observed that patients presenting anomaly in those are more likely to experience heart failure and have a higher risk of mortality.
+Lastly, our analysis revealed a significant effect of aging (age > 60) on the likelihood of heart failure.
+
+
+# Discussion 
+
+We aim at analyzing time to heart failure. From non-parametric model, we have found that there is a rapid decrease in time to heart failure. Semi-parametric model yields that here is an effect of high blood pressure, EF, serum_creatinine, serum_sodium and ageing, but surprisingly no effect of Smocking, nor diabetes or anaemia. However, one could consider that, this study held in a cohort of patients of NYHA class III and IV which are advanced stages of heart failure. Hence, similar results concerning diabetes and smoking have been reported by [F Otero-Raviña et al. (2009)](https://scholar.google.com/scholar?q=Morbidity+and+mortality+among+heart+failure+patients+in+Galicia%2C+N.W.+Spain%3A+the+GALICAP+study+Otero-Raviña+2009) as well. In addition, Ahmad et al.(2017) stated that, this non significance might be due to drug and medication effect reducing these factors impact on time to heart failure.   
+
+# Conclusions   
+
+Following our results, we can conclude that ageing, Ejection fraction, serum_creatinine, serum_sodium and high blood pressure influence time to heart failure and the occurence of CHD. Overall, above half of these patients died early of heart failure. Though there was a high risk of death in this cohort. 
+
+# Git Repository
+
+https://github.com/zakicode19/Survival_Analysis_Project
+
+
+# References  
+
+<div id="refs"></div>
+
+https://cran.r-project.org/web/packages/flexsurv/vignettes/flexsurv.pdf
+
+https://boostedml.com/2018/11/when-should-you-use-non-parametric-parametric-and-semi-parametric-survival-analysis.html
